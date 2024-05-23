@@ -188,12 +188,7 @@ util::json::Dict EdgePL::getAttrs() const {
     util::json::Dict route;
     route["id"] = util::toString(r.route);
     route["label"] = r.route->getShortName();
-    
-    // Conversion explicite en std::string pour assurer la concaténation correcte
-    std::string agency = util::toString(r.route->getAgency());
-    std::string routeId = util::toString(r.route->getId());
-    route["routeId"] = agency + "_" + routeId;
-
+    route["routeId"] = r.route->getId();
     route["color"] = r.route->getColorString();
 
     if (r.direction != 0) {
