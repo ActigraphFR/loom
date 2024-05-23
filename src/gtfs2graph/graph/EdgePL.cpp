@@ -188,7 +188,7 @@ util::json::Dict EdgePL::getAttrs() const {
     util::json::Dict route;
     route["id"] = util::toString(r.route);
     route["label"] = r.route->getShortName();
-    route["routeId"] = r.route->getAgency() + "_" + r.route->getId();
+    route["routeId"] = r.route->getId();
     route["color"] = r.route->getColorString();
 
     if (r.direction != 0) {
