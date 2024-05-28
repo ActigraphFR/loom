@@ -53,6 +53,7 @@ struct DirLineEdgePL {
       auto line = util::json::Dict();
       line["id"] = l->id();
       line["label"] = l->label();
+      line["routeId"] = l->routeId();
       line["color"] = l->color();
 
       dbg_lines += (first ? "" : "$") + l->label();
