@@ -189,6 +189,7 @@ class LineGraph : public util::graph::UndirGraph<LineNodePL, LineEdgePL> {
 
   std::string getLineColor(const nlohmann::json::object_t& line);
   std::string getLineLabel(const nlohmann::json::object_t& line);
+  std::string getLineRouteId(const nlohmann::json::object_t& line);
   std::string getLineId(const nlohmann::json::object_t& line);
 
   std::string getStationLabel(const nlohmann::json::object_t& props);
