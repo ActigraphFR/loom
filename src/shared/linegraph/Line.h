@@ -14,18 +14,16 @@ namespace linegraph {
 class Line {
  public:
   Line(const std::string& id, const std::string& label,
-       const std::string& color,
-       const std::string& routeId)
-      : _id(id), _label(label), _color(color), _routeId(routeId) {}
+       const std::string& color)
+      : _id(id), _label(label), _color(color) {}
 
   const std::string& id() const;
   const std::string& label() const;
-  const std::string& routeId() const;
   const std::string& color() const;
   void setColor(const std::string& c) { _color = c; };
 
  private:
-  std::string _id, _label, _color, _routeId;
+  std::string _id, _label, _color;
 };
 }
 }
