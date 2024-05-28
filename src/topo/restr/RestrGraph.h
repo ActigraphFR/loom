@@ -53,7 +53,6 @@ struct RestrEdgePL {
       line["id"] = l->id();
       line["label"] = l->label();
       line["color"] = l->color();
-      line["routeId"] = l->routeId();
 
       dbg_lines += (first ? "" : "$") + l->label();
 
