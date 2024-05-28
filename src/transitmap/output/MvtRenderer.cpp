@@ -352,6 +352,7 @@ void MvtRenderer::renderClique(const InnerClique& cc, const LineNode* n) {
         paramsOut["color"] = "000000";
         paramsOut["line-color"] = c.geoms[i].from.line->color();
         paramsOut["line"] = c.geoms[i].from.line->label();
+        paramsOut["routeId"] = c.geoms[i].from.line->routeId();
         paramsOut["lineCap"] = "butt";
         paramsOut["class"] = getLineClass(c.geoms[i].from.line->id());
         paramsOut["width"] =
@@ -367,6 +368,7 @@ void MvtRenderer::renderClique(const InnerClique& cc, const LineNode* n) {
       params["color"] = c.geoms[i].from.line->color();
       params["line-color"] = c.geoms[i].from.line->color();
       params["line"] = c.geoms[i].from.line->label();
+      params["routeId"] = c.geoms[i].from.line->routeId();
       params["lineCap"] = "round";
       params["class"] = getLineClass(c.geoms[i].from.line->id());
       params["width"] = util::toString(_cfg->lineWidth);
@@ -437,6 +439,7 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
       paramsOut["color"] = "000000";
       paramsOut["line-color"] = line->color();
       paramsOut["line"] = line->label();
+      paramsOut["routeId"] = line->routeId();
       paramsOut["lineCap"] = "butt";
       paramsOut["class"] = getLineClass(line->id());
       paramsOut["width"] =
@@ -452,6 +455,7 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
     params["color"] = line->color();
     params["line-color"] = line->color();
     params["line"] = line->label();
+    params["routeId"] = line->routeId();
     params["lineCap"] = "round";
     params["class"] = getLineClass(line->id());
     params["width"] = util::toString(_cfg->lineWidth);
