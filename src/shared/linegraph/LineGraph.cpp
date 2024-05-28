@@ -105,6 +105,8 @@ void LineGraph::readFromDot(std::istream* s) {
           id = ent.attrs["id"];
         } else if (ent.attrs.find("label") != ent.attrs.end()) {
           id = ent.attrs["label"];
+        } else if (ent.attrs.find("routeId") != ent.attrs.end()) {
+          id = ent.attrs["routeId"];
         } else if (ent.attrs.find("color") != ent.attrs.end()) {
           id = ent.attrs["color"];
         } else {
@@ -116,6 +118,9 @@ void LineGraph::readFromDot(std::istream* s) {
           std::string label = ent.attrs.find("label") == ent.attrs.end()
                                   ? ""
                                   : ent.attrs["label"];
+          std::string label = ent.attrs.find("routeId") == ent.attrs.end()
+                                  ? ""
+                                  : ent.attrs["routeId"];
           std::string color = ent.attrs.find("color") == ent.attrs.end()
                                   ? ""
                                   : ent.attrs["color"];
@@ -1455,10 +1460,11 @@ void LineGraph::extractLine(const nlohmann::json::object_t& line, LineEdge* e,
   std::string id = getLineId(line);
   std::string color = getLineColor(line);
   std::string label = getLineLabel(line);
+  std::string routeId = getLineRouteId(line);
 
   const Line* l = getLine(id);
   if (!l) {
-    l = new Line(id, label, color);
+    l = new Line(id, label, color, routeId);
     addLine(l);
   }
 
