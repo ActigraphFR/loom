@@ -25,7 +25,7 @@ struct Config {
 
   double outputResolution = 0.1;
   double inputSmoothing = 1;
-  double innerGeometryPrecision = 100;
+  double innerGeometryPrecision = 3;
 
   double outputPadding = -1;
 
