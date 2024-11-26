@@ -41,13 +41,15 @@ const static double TILE_RES = 1024;
 const static double WEB_MERC_EXT = 20037508.3427892;
 
 // ground width/height is halved with each zoom level
-const static int GRID_ZOOM = 14;
+// const static int GRID_ZOOM = 14;
+const static int GRID_ZOOM = 4;
 const static int GRID_SIZE = 1 << (GRID_ZOOM);
 
 const static double GRID_W =
     (WEB_MERC_EXT * 2) / static_cast<double>(GRID_SIZE);
 
-const static int GRID2_ZOOM = 7;
+//const static int GRID2_ZOOM = 7;
+const static int GRID2_ZOOM = 2;
 const static int GRID2_SIZE = 1 << (GRID2_ZOOM);
 
 const static double GRID2_W =
