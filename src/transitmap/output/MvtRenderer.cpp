@@ -35,7 +35,7 @@ using util::geo::LinePointCmp;
 using util::geo::Polygon;
 using util::geo::PolyLine;
 
-const static double TILE_RES = 512;
+const static double TILE_RES = 1024;
 
 // ground width/height of a single tile on zoom level 0
 const static double WEB_MERC_EXT = 20037508.3427892;
