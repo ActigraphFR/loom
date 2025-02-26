@@ -190,7 +190,7 @@ InnerGeom RenderGraph::getInnerBezier(const LineNode* n,
                .getSlopeBetweenDists(5, 0);
   }
 
-  double da = d * 0.85;
+  double da = d * 1;
 
   DPoint pa =
       DPoint(p.getX() + slpA.first * d * 2, p.getY() + slpA.second * d * 2);
@@ -206,12 +206,12 @@ InnerGeom RenderGraph::getInnerBezier(const LineNode* n,
 
       double avg = (dar + dbr) / 2;
 
-      da = avg * 0.85;
+      da = avg * 1;
     }
   }
 
   if ((2 * da) < EPSI || (2 * da) > d * 2) {
-    da = d * 0.85;
+    da = d * 1;
   }
 
   auto pp = DPoint(p.getX() + slpA.first * (da), p.getY() + slpA.second * (da));
@@ -258,7 +258,7 @@ InnerGeom RenderGraph::getTerminusBezier(const LineNode* n,
   InnerGeom ret = getTerminusLine(n, partnerFrom);
   DPoint p = ret.geom.getLine().front();
   DPoint pp = ret.geom.getLine().back();
-  double d = util::geo::dist(p, pp) * 0.85;
+  double d = util::geo::dist(p, pp) * 1;
 
   DPoint b = p;
   DPoint c = pp;
