@@ -576,7 +576,7 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
 
     // Ajouter des points intermédiaires pour lisser la géométrie
     util::geo::Line<double> smoothed;
-    const int pointsPerSegment = 6; // Nombre de points à ajouter par segment
+    const int pointsPerSegment = 10; // Nombre de points à ajouter par segment
     smoothed.push_back(ll[0]); // Point de départ
 
     for (size_t i = 1; i < ll.size(); i++) {
