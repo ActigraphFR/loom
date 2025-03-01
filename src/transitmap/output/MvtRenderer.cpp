@@ -548,27 +548,21 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
     return;
 
   double tw = (WEB_MERC_EXT * 2.0) / static_cast<double>(1 << z);
-
   double ox = static_cast<double>(x) * tw - WEB_MERC_EXT;
   double oy = static_cast<double>(y) * tw - WEB_MERC_EXT;
 
-  // crop
+  // Crop lines to tile bounds
   std::vector<util::geo::Line<double>> croppedLines;
-
-  // pad!
   auto box = util::geo::pad(getBox(z, x, y), 50 * (tw / TILE_RES));
 
   if (layer->name() == "stations") {
     croppedLines.push_back(l);
   } else {
     croppedLines.push_back({});
-
     for (size_t i = 1; i < l.size(); i++) {
       const auto& curP = l[i];
       const auto& prevP = l[i - 1];
-
-      if (util::geo::intersects(util::geo::LineSegment<double>{curP, prevP},
-                                box)) {
+      if (util::geo::intersects(util::geo::LineSegment<double>{prevP, curP}, box)) {
         croppedLines.back().push_back(prevP);
         croppedLines.back().push_back(curP);
       } else if (croppedLines.back().size() > 0) {
@@ -578,17 +572,34 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
   }
 
   for (const auto& ll : croppedLines) {
-    // skip point-like geometries
     if (ll.size() < 2) continue;
 
-    auto l = util::geo::simplify(ll, 2 * tw / TILE_RES);
+    // Ajouter des points intermédiaires pour lisser la géométrie
+    util::geo::Line<double> smoothed;
+    const int pointsPerSegment = 6; // Nombre de points à ajouter par segment
+    smoothed.push_back(ll[0]); // Point de départ
 
-    // skip point-like geometries
-    if (ll.size() < 2) continue;
-    if (l.size() == 2 && util::geo::dist(l[0], l[1]) < tw / TILE_RES) continue;
+    for (size_t i = 1; i < ll.size(); i++) {
+      double dx = (ll[i].getX() - ll[i - 1].getX()) / (pointsPerSegment + 1);
+      double dy = (ll[i].getY() - ll[i - 1].getY()) / (pointsPerSegment + 1);
+
+      // Ajouter des points intermédiaires
+      for (int j = 1; j <= pointsPerSegment; j++) {
+        double x = ll[i - 1].getX() + j * dx;
+        double y = ll[i - 1].getY() + j * dy;
+        smoothed.push_back({x, y});
+      }
+      smoothed.push_back(ll[i]); // Point de fin du segment
+    }
+
+    // Simplification légère pour éviter trop de points, mais garder la fluidité
+    auto l = util::geo::simplify(smoothed, tw / TILE_RES); // Réduire si besoin
+
+    if (l.size() < 2 || (l.size() == 2 && util::geo::dist(l[0], l[1]) < tw / TILE_RES)) continue;
 
     auto feature = layer->add_features();
 
+    // Ajouter les paramètres (tags)
     for (const auto& kv : params) {
       auto kit = keys.find(kv.first);
       auto vit = vals.find(kv.second);
@@ -613,23 +624,21 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
     }
 
     feature->set_id(1);
-
     if (layer->name() == "stations") {
       feature->set_type(vector_tile::Tile_GeomType_POLYGON);
     } else {
       feature->set_type(vector_tile::Tile_GeomType_LINESTRING);
     }
 
-    // MoveTo, 1x
+    // MoveTo (premier point)
     feature->add_geometry((1 & 0x7) | (1 << 3));
     int px = (l[0].getX() - ox) * (TILE_RES / tw);
     int py = TILE_RES - (l[0].getY() - oy) * (TILE_RES / tw);
     feature->add_geometry((px << 1) ^ (px >> 31));
     feature->add_geometry((py << 1) ^ (py >> 31));
 
-    // LineTo, l.size() - 1 times
+    // LineTo (points suivants)
     feature->add_geometry((2 & 0x7) | ((l.size() - 1) << 3));
-
     for (size_t i = 1; i < l.size(); i++) {
       int dx = ((l[i].getX() - ox) * (TILE_RES / tw)) - px;
       int dy = (TILE_RES - (l[i].getY() - oy) * (TILE_RES / tw)) - py;
@@ -642,7 +651,7 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
     }
 
     if (layer->name() == "stations") {
-      // close path
+      // ClosePath pour les polygones
       feature->add_geometry((7 & 0x7) | (1 << 3));
     }
   }
