@@ -574,7 +574,6 @@ util::geo::Line<double> smoothBezier(const util::geo::Line<double>& input, int p
 
   return smoothed;
 }
-
 // _____________________________________________________________________________
 void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
                                size_t x, size_t y,
@@ -615,30 +614,26 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
   for (const auto& ll : croppedLines) {
     if (ll.size() < 2) continue;
 
-    util::geo::Line<double> processedLine;
+    // Ajouter des points intermédiaires pour lisser la géométrie
+    util::geo::Line<double> smoothed;
+    const int pointsPerSegment = 8; // Nombre de points à ajouter par segment
+    smoothed.push_back(ll[0]); // Point de départ
 
-    // Appliquer un lissage spécifique selon le type de couche
-    if (layer->name() == "lines" || layer->name() == "inner-connections") {
-      // Lissage Bézier pour les lignes
-      processedLine = smoothBezier(ll, 8); // 8 points par segment pour une bonne fluidité
-    } else {
-      // Pour les stations (polygones), interpolation linéaire comme avant
-      processedLine.push_back(ll[0]);
-      const int pointsPerSegment = 8; // 8 points par segment pour une bonne fluidité
-      for (size_t i = 1; i < ll.size(); i++) {
-        double dx = (ll[i].getX() - ll[i - 1].getX()) / (pointsPerSegment + 1);
-        double dy = (ll[i].getY() - ll[i - 1].getY()) / (pointsPerSegment + 1);
-        for (int j = 1; j <= pointsPerSegment; j++) {
-          double x = ll[i - 1].getX() + j * dx;
-          double y = ll[i - 1].getY() + j * dy;
-          processedLine.push_back({x, y});
-        }
-        processedLine.push_back(ll[i]);
+    for (size_t i = 1; i < ll.size(); i++) {
+      double dx = (ll[i].getX() - ll[i - 1].getX()) / (pointsPerSegment + 1);
+      double dy = (ll[i].getY() - ll[i - 1].getY()) / (pointsPerSegment + 1);
+
+      // Ajouter des points intermédiaires
+      for (int j = 1; j <= pointsPerSegment; j++) {
+        double x = ll[i - 1].getX() + j * dx;
+        double y = ll[i - 1].getY() + j * dy;
+        smoothed.push_back({x, y});
       }
+      smoothed.push_back(ll[i]); // Point de fin du segment
     }
 
-    // Simplification légère pour éviter trop de points
-    auto l = util::geo::simplify(processedLine, tw / TILE_RES);
+    // Simplification légère pour éviter trop de points, mais garder la fluidité
+    auto l = util::geo::simplify(smoothed, tw / TILE_RES); // Réduire si besoin
 
     if (l.size() < 2 || (l.size() == 2 && util::geo::dist(l[0], l[1]) < tw / TILE_RES)) continue;
 
