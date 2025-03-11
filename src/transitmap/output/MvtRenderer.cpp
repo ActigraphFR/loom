@@ -305,13 +305,47 @@ bool MvtRenderer::hasSameOrigin(const InnerGeom& a, const InnerGeom& b) const {
 void MvtRenderer::renderClique(const InnerClique& cc, const LineNode* n) {
   std::multiset<InnerClique> renderCliques = getInnerCliques(n, cc.geoms, 0);
   for (const auto& c : renderCliques) {
-    // Point de croisement unique : le centre du nœud
-    DPoint center = *n->pl().getGeom();
+    // the longest geom will be the ref geom
+    InnerGeom ref = c.geoms[0];
+    for (size_t i = 1; i < c.geoms.size(); i++) {
+      if (c.geoms[i].geom.getLength() > ref.geom.getLength()) ref = c.geoms[i];
+    }
 
     for (size_t i = 0; i < c.geoms.size(); i++) {
-      // Construire une ligne simple : début → centre → fin
-      PolyLine<double> pl;
-      pl << c.geoms[i].geom.front() << center << c.geoms[i].geom.back();
+      PolyLine<double> pl(c.geoms[i].geom);
+
+      if (ref.geom.getLength() >
+          (_cfg->lineWidth + 2 * _cfg->outlineWidth + _cfg->lineSpacing) *
+              _res * 4) {
+        double off =
+            -(_cfg->lineWidth + _cfg->lineSpacing + 2 * _cfg->outlineWidth) *
+            _res *
+            (static_cast<int>(c.geoms[i].slotFrom) -
+             static_cast<int>(ref.slotFrom));
+
+        if (ref.from.edge->getTo() == n) off = -off;
+
+        pl = ref.geom.offsetted(off);
+
+        if (pl.getLength() / c.geoms[i].geom.getLength() > 1.5)
+          pl = c.geoms[i].geom;
+
+        std::set<LinePoint<double>, LinePointCmp<double>> a;
+        std::set<LinePoint<double>, LinePointCmp<double>> b;
+
+        if (ref.from.edge)
+          a = n->pl().frontFor(ref.from.edge)->geom.getIntersections(pl);
+        if (ref.to.edge)
+          b = n->pl().frontFor(ref.to.edge)->geom.getIntersections(pl);
+
+        if (a.size() > 0 && b.size() > 0) {
+          pl = pl.getSegment(a.begin()->totalPos, b.begin()->totalPos);
+        } else if (a.size() > 0) {
+          pl = pl.getSegment(a.begin()->totalPos, 1);
+        } else if (b.size() > 0) {
+          pl = pl.getSegment(0, b.begin()->totalPos);
+        }
+      }
 
       if (_cfg->outlineWidth > 0) {
         Params paramsOut;
@@ -501,6 +535,52 @@ Box<double> MvtRenderer::getBox(size_t z, size_t x, size_t y) const {
 }
 
 // _____________________________________________________________________________
+// Fonction pour lisser une ligne avec une courbe de Bézier quadratique
+util::geo::Line<double> smoothBezier(const util::geo::Line<double>& input, int pointsPerSegment) {
+  util::geo::Line<double> smoothed;
+
+  if (input.size() < 2) return input;
+
+  smoothed.push_back(input[0]); // Premier point
+
+  for (size_t i = 1; i < input.size(); i++) {
+    // Points de contrôle pour Bézier quadratique
+    DPoint p0 = input[i - 1]; // Point de départ
+    DPoint p2 = input[i];     // Point d’arrivée
+    DPoint p1;                // Point de contrôle intermédiaire
+
+    // Si possible, utilise le point précédent ou suivant pour orienter la courbe
+    if (i > 1) {
+      DPoint prev = input[i - 2];
+      // Calcul du point de contrôle basé sur la direction précédente
+      double dx = p0.getX() - prev.getX();
+      double dy = p0.getY() - prev.getY();
+      p1 = DPoint(p0.getX() + dx * 0.5, p0.getY() + dy * 0.5);
+    } else {
+      // Point milieu si pas de précédent
+      double dx = p2.getX() - p0.getX();
+      double dy = p2.getY() - p0.getY();
+      p1 = DPoint(p0.getX() + dx * 0.5, p0.getY() + dy * 0.5);
+    }
+
+    // Générer des points le long de la courbe de Bézier quadratique
+    for (int j = 1; j <= pointsPerSegment; j++) {
+      double t = static_cast<double>(j) / (pointsPerSegment + 1);
+      double t2 = t * t;
+      double mt = 1 - t;
+      double mt2 = mt * mt;
+
+      // Formule de Bézier quadratique: B(t) = (1-t)^2*P0 + 2(1-t)t*P1 + t^2*P2
+      double x = mt2 * p0.getX() + 2 * mt * t * p1.getX() + t2 * p2.getX();
+      double y = mt2 * p0.getY() + 2 * mt * t * p1.getY() + t2 * p2.getY();
+      smoothed.push_back({x, y});
+    }
+    smoothed.push_back(p2); // Ajouter le point final
+  }
+
+  return smoothed;
+}
+// _____________________________________________________________________________
 void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
                                size_t x, size_t y,
                                vector_tile::Tile_Layer* layer, Params params,
@@ -540,8 +620,11 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
   for (const auto& ll : croppedLines) {
     if (ll.size() < 2) continue;
 
-    // Pas de lissage, juste une simplification légère
-    auto finalLine = util::geo::simplify(ll, tw / TILE_RES);
+    // Appliquer un lissage avec Bézier quadratique
+    auto smoothed = smoothBezier(ll, 8); // 8 points par segment pour une bonne fluidité
+
+    // Simplification légère pour éviter un excès de points, mais préserver les courbes
+    auto finalLine = util::geo::simplify(smoothed, tw / TILE_RES * 4); // Tolérance augmentée
 
     if (finalLine.size() < 2 || (finalLine.size() == 2 && util::geo::dist(finalLine[0], finalLine[1]) < tw / TILE_RES)) continue;
 
