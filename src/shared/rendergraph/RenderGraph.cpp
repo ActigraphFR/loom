@@ -91,6 +91,9 @@ std::vector<InnerGeom> RenderGraph::innerGeoms(const LineNode* n,
   std::vector<InnerGeom> ret;
   std::map<const Line*, std::set<const LineEdge*>> processed;
 
+  // Centre du nœud comme point de convergence
+  DPoint center = *n->pl().getGeom();
+
   for (size_t i = 0; i < n->pl().fronts().size(); ++i) {
     const NodeFront& nf = n->pl().fronts()[i];
 
@@ -101,47 +104,30 @@ std::vector<InnerGeom> RenderGraph::innerGeoms(const LineNode* n,
       std::vector<Partner> partners = getPartners(n, nf.edge, lineOcc);
 
       for (const Partner& p : partners) {
-        if (processed[lineOcc.line].find(p.edge) !=
-            processed[lineOcc.line].end()) {
+        if (processed[lineOcc.line].find(p.edge) != processed[lineOcc.line].end()) {
           continue;
         }
 
-        auto is = getInnerLine(n, o, p);
+        // Créer une géométrie qui passe par le centre
+        PolyLine<double> pl;
+        DPoint start = linePosOn(*n->pl().frontFor(o.edge), o.line, false);
+        DPoint end = linePosOn(*n->pl().frontFor(p.edge), p.line, false);
+        pl << start << center << end;
 
-        auto nfo = n->pl().frontFor(p.edge);
+        InnerGeom is(o, p, pl, o.edge->pl().linePos(o.line), p.edge->pl().linePos(p.line));
+        ret.push_back(is);
 
-        double dmax = std::max(
-            util::geo::dist(nfo->geom.getLine(), nf.geom.getLine().front()),
-            util::geo::dist(nfo->geom.getLine(), nf.geom.getLine().back()));
-
-        if (prec > 0 && is.geom.longerThan(0) && dmax > 5) {
-          ret.push_back(getInnerBezier(n, o, p, prec));
-        } else {
-          ret.push_back(is);
-        }
-
-        auto iSects = nfo->geom.getIntersections(ret.back().geom);
-        if (iSects.size() > 0) {
-          ret.back().geom =
-              ret.back().geom.getSegment(0, iSects.begin()->totalPos);
-        }
-
-        auto iSects2 = nf.geom.getIntersections(ret.back().geom);
-        if (iSects2.size() > 0) {
-          ret.back().geom =
-              ret.back().geom.getSegment(iSects2.begin()->totalPos, 1);
-        }
+        processed[lineOcc.line].insert(p.edge);
       }
 
-      // handle lines where this node is the terminus
+      // Gérer les terminus
       if (partners.size() == 0 && !notCompletelyServed(n)) {
-        auto is = getTerminusLine(n, o);
+        DPoint start = linePosOn(*n->pl().frontFor(o.edge), o.line, false);
+        PolyLine<double> pl;
+        pl << start << center; // Ligne simple vers le centre
+        InnerGeom is(o, Partner(), pl, o.edge->pl().linePos(o.line), 0);
         if (is.geom.longerThan(0)) {
-          if (prec > 0) {
-            ret.push_back(getTerminusBezier(n, o, prec));
-          } else {
-            ret.push_back(is);
-          }
+          ret.push_back(is);
         }
       }
 
@@ -151,7 +137,6 @@ std::vector<InnerGeom> RenderGraph::innerGeoms(const LineNode* n,
 
   return ret;
 }
-
 // _____________________________________________________________________________
 InnerGeom RenderGraph::getInnerBezier(const LineNode* n,
                                       const Partner& partnerFrom,
