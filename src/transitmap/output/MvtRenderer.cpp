@@ -182,27 +182,11 @@ void MvtRenderer::outputEdges(const RenderGraph& outG) {
 // _____________________________________________________________________________
 void MvtRenderer::renderNodeConnections(const RenderGraph& outG,
                                         const LineNode* n) {
-  // Centre du nœud comme point de convergence
-  DPoint center = *n->pl().getGeom();
-
-  // Récupérer les géométries internes, mais les forcer à passer par le centre
   auto geoms = outG.innerGeoms(n, _cfg->innerGeometryPrecision * _res);
 
-  // Redéfinir chaque géométrie pour converger au centre
-  std::vector<InnerGeom> adjustedGeoms;
-  for (const auto& geom : geoms) {
-    PolyLine<double> pl;
-    pl << geom.geom.front() << center << geom.geom.back();
-    InnerGeom adjustedGeom = geom;
-    adjustedGeom.geom = pl; // Remplacer la géométrie par une version centrée
-    adjustedGeoms.push_back(adjustedGeom);
-  }
-
-  // Passer les géométries ajustées aux cliques
-  for (auto& clique : getInnerCliques(n, adjustedGeoms, 9999)) {
-    renderClique(clique, n);
-  }
+  for (auto& clique : getInnerCliques(n, geoms, 9999)) renderClique(clique, n);
 }
+
 // _____________________________________________________________________________
 std::multiset<InnerClique> MvtRenderer::getInnerCliques(
     const shared::linegraph::LineNode* n, std::vector<InnerGeom> pool,
@@ -319,47 +303,56 @@ bool MvtRenderer::hasSameOrigin(const InnerGeom& a, const InnerGeom& b) const {
 
 // _____________________________________________________________________________
 void MvtRenderer::renderClique(const InnerClique& cc, const LineNode* n) {
-  for (const auto& geom : cc.geoms) {
-    // La géométrie est déjà ajustée pour passer par le centre
-    PolyLine<double> pl = geom.geom;
+  std::multiset<InnerClique> renderCliques = getInnerCliques(n, cc.geoms, 0);
+  for (const auto& c : renderCliques) {
+    // Point de croisement unique : le centre du nœud
+    DPoint center = *n->pl().getGeom();
 
-    if (_cfg->outlineWidth > 0) {
-      Params paramsOut;
-      paramsOut["color"] = "000000";
-      paramsOut["line-color"] = geom.from.line->color();
-      paramsOut["line"] = geom.from.line->label();
-      paramsOut["lineCap"] = "butt";
-      paramsOut["class"] = getLineClass(geom.from.line->id());
-      paramsOut["width"] =
-          util::toString((2.0 * _cfg->outlineWidth + _cfg->lineWidth));
+    for (size_t i = 0; i < c.geoms.size(); i++) {
+      // Construire une ligne simple : début → centre → fin
+      PolyLine<double> pl;
+      pl << c.geoms[i].geom.front() << center << c.geoms[i].geom.back();
+
+      if (_cfg->outlineWidth > 0) {
+        Params paramsOut;
+        paramsOut["color"] = "000000";
+        paramsOut["line-color"] = c.geoms[i].from.line->color();
+        paramsOut["line"] = c.geoms[i].from.line->label();
+        paramsOut["lineCap"] = "butt";
+        paramsOut["class"] = getLineClass(c.geoms[i].from.line->id());
+        paramsOut["width"] =
+            util::toString((2.0 * _cfg->outlineWidth + _cfg->lineWidth));
+
+        if (n->pl().getComponent() != std::numeric_limits<uint32_t>::max())
+          paramsOut["component"] = util::toString(n->pl().getComponent());
+
+        addFeature({pl.getLine(), "inner-connections", paramsOut});
+      }
+
+      Params params;
+      params["color"] = c.geoms[i].from.line->color();
+      params["line-color"] = c.geoms[i].from.line->color();
+      params["line"] = c.geoms[i].from.line->label();
+      params["lineCap"] = "round";
+      params["class"] = getLineClass(c.geoms[i].from.line->id());
+      params["width"] = util::toString(_cfg->lineWidth);
 
       if (n->pl().getComponent() != std::numeric_limits<uint32_t>::max())
-        paramsOut["component"] = util::toString(n->pl().getComponent());
+        params["component"] = util::toString(n->pl().getComponent());
 
-      addFeature({pl.getLine(), "inner-connections", paramsOut});
+      addFeature({pl.getLine(), "inner-connections", params});
     }
-
-    Params params;
-    params["color"] = geom.from.line->color();
-    params["line-color"] = geom.from.line->color();
-    params["line"] = geom.from.line->label();
-    params["lineCap"] = "round";
-    params["class"] = getLineClass(geom.from.line->id());
-    params["width"] = util::toString(_cfg->lineWidth);
-
-    if (n->pl().getComponent() != std::numeric_limits<uint32_t>::max())
-      params["component"] = util::toString(n->pl().getComponent());
-
-    addFeature({pl.getLine(), "inner-connections", params});
   }
 }
 
 // _____________________________________________________________________________
 void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
                                      const shared::linegraph::LineEdge* e) {
-  // Centres des nœuds source et destination
-  DPoint fromCenter = *e->getFrom()->pl().getGeom();
-  DPoint toCenter = *e->getTo()->pl().getGeom();
+  const shared::linegraph::NodeFront* nfTo = e->getTo()->pl().frontFor(e);
+  const shared::linegraph::NodeFront* nfFrom = e->getFrom()->pl().frontFor(e);
+
+  assert(nfTo);
+  assert(nfFrom);
 
   PolyLine<double> center(*e->pl().getGeom());
 
@@ -373,22 +366,37 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
 
   for (size_t i = 0; i < e->pl().getLines().size(); i++) {
     const auto& lo = e->pl().lineOccAtPos(i);
-    const Line* line = lo.line;
 
-    // Construire la ligne avec offset, mais connectée aux centres
-    PolyLine<double> p;
-    p << fromCenter; // Début au centre du nœud source
-    for (size_t j = 1; j < center.getLine().size() - 1; j++) {
-      p << center.getLine()[j]; // Points intermédiaires
-    }
-    p << toCenter; // Fin au centre du nœud destination
+    const Line* line = lo.line;
+    PolyLine<double> p = center;
 
     if (p.getLength() < 0.01) continue;
 
-    // Appliquer l’offset pour séparer les lignes parallèles
     double offset =
         -(o - oo / 2.0 - ((2 * outlineW + _cfg->lineWidth) * _res) / 2.0);
+
     p.offsetPerp(offset);
+
+    auto iSects = nfTo->geom.getIntersections(p);
+    if (iSects.size() > 0) {
+      p = p.getSegment(0, iSects.begin()->totalPos);
+    } else {
+      p << nfTo->geom.projectOn(p.back()).p;
+    }
+
+    auto iSects2 = nfFrom->geom.getIntersections(p);
+    if (iSects2.size() > 0) {
+      p = p.getSegment(iSects2.begin()->totalPos, 1);
+    } else {
+      p >> nfFrom->geom.projectOn(p.front()).p;
+    }
+
+    std::string css, oCss;
+
+    if (!lo.style.isNull()) {
+      css = lo.style.get().getCss();
+      oCss = lo.style.get().getOutlineCss();
+    }
 
     if (_cfg->outlineWidth > 0) {
       Params paramsOut;
