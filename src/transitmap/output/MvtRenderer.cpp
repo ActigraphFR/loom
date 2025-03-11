@@ -317,8 +317,10 @@ bool MvtRenderer::hasSameOrigin(const InnerGeom& a, const InnerGeom& b) const {
   return false;
 }
 
+// _____________________________________________________________________________
 void MvtRenderer::renderClique(const InnerClique& cc, const LineNode* n) {
   for (const auto& geom : cc.geoms) {
+    // La géométrie est déjà ajustée pour passer par le centre
     PolyLine<double> pl = geom.geom;
 
     if (_cfg->outlineWidth > 0) {
@@ -349,14 +351,6 @@ void MvtRenderer::renderClique(const InnerClique& cc, const LineNode* n) {
       params["component"] = util::toString(n->pl().getComponent());
 
     addFeature({pl.getLine(), "inner-connections", params});
-  }
-}
-// _____________________________________________________________________________
-void MvtRenderer::renderNodeConnections(const RenderGraph& outG,
-                                        const LineNode* n) {
-  auto geoms = outG.innerGeoms(n, _cfg->innerGeometryPrecision * _res);
-  for (auto& clique : getInnerCliques(n, geoms, 9999)) {
-    renderClique(clique, n);
   }
 }
 
