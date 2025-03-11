@@ -305,47 +305,13 @@ bool MvtRenderer::hasSameOrigin(const InnerGeom& a, const InnerGeom& b) const {
 void MvtRenderer::renderClique(const InnerClique& cc, const LineNode* n) {
   std::multiset<InnerClique> renderCliques = getInnerCliques(n, cc.geoms, 0);
   for (const auto& c : renderCliques) {
-    // the longest geom will be the ref geom
-    InnerGeom ref = c.geoms[0];
-    for (size_t i = 1; i < c.geoms.size(); i++) {
-      if (c.geoms[i].geom.getLength() > ref.geom.getLength()) ref = c.geoms[i];
-    }
+    // Point de croisement unique : le centre du nœud
+    DPoint center = *n->pl().getGeom();
 
     for (size_t i = 0; i < c.geoms.size(); i++) {
-      PolyLine<double> pl(c.geoms[i].geom);
-
-      if (ref.geom.getLength() >
-          (_cfg->lineWidth + 2 * _cfg->outlineWidth + _cfg->lineSpacing) *
-              _res * 4) {
-        double off =
-            -(_cfg->lineWidth + _cfg->lineSpacing + 2 * _cfg->outlineWidth) *
-            _res *
-            (static_cast<int>(c.geoms[i].slotFrom) -
-             static_cast<int>(ref.slotFrom));
-
-        if (ref.from.edge->getTo() == n) off = -off;
-
-        pl = ref.geom.offsetted(off);
-
-        if (pl.getLength() / c.geoms[i].geom.getLength() > 1.5)
-          pl = c.geoms[i].geom;
-
-        std::set<LinePoint<double>, LinePointCmp<double>> a;
-        std::set<LinePoint<double>, LinePointCmp<double>> b;
-
-        if (ref.from.edge)
-          a = n->pl().frontFor(ref.from.edge)->geom.getIntersections(pl);
-        if (ref.to.edge)
-          b = n->pl().frontFor(ref.to.edge)->geom.getIntersections(pl);
-
-        if (a.size() > 0 && b.size() > 0) {
-          pl = pl.getSegment(a.begin()->totalPos, b.begin()->totalPos);
-        } else if (a.size() > 0) {
-          pl = pl.getSegment(a.begin()->totalPos, 1);
-        } else if (b.size() > 0) {
-          pl = pl.getSegment(0, b.begin()->totalPos);
-        }
-      }
+      // Construire une ligne simple : début → centre → fin
+      PolyLine<double> pl;
+      pl << c.geoms[i].geom.front() << center << c.geoms[i].geom.back();
 
       if (_cfg->outlineWidth > 0) {
         Params paramsOut;
@@ -535,46 +501,6 @@ Box<double> MvtRenderer::getBox(size_t z, size_t x, size_t y) const {
 }
 
 // _____________________________________________________________________________
-// Fonction pour lisser une ligne avec une courbe de Bézier quadratique
-util::geo::Line<double> smoothBezier(const util::geo::Line<double>& input, int pointsPerSegment) {
-  util::geo::Line<double> smoothed;
-
-  if (input.size() < 2) return input;
-
-  smoothed.push_back(input[0]); // Premier point
-
-  for (size_t i = 1; i < input.size(); i++) {
-    // Points de contrôle pour Bézier quadratique
-    DPoint p0 = input[i - 1]; // Point de départ
-    DPoint p2 = input[i];     // Point d’arrivée
-    DPoint p1;                // Point de contrôle intermédiaire
-
-    // Si possible, utilise le point précédent ou suivant pour orienter la courbe
-    if (i > 1) {
-      DPoint prev = input[i - 2];
-      p1 = p0 + (p0 - prev) * 0.5; // Point de contrôle basé sur la direction précédente
-    } else {
-      p1 = p0 + (p2 - p0) * 0.5; // Point milieu si pas de précédent
-    }
-
-    // Générer des points le long de la courbe de Bézier quadratique
-    for (int j = 1; j <= pointsPerSegment; j++) {
-      double t = static_cast<double>(j) / (pointsPerSegment + 1);
-      double t2 = t * t;
-      double mt = 1 - t;
-      double mt2 = mt * mt;
-
-      // Formule de Bézier quadratique: B(t) = (1-t)^2*P0 + 2(1-t)t*P1 + t^2*P2
-      double x = mt2 * p0.getX() + 2 * mt * t * p1.getX() + t2 * p2.getX();
-      double y = mt2 * p0.getY() + 2 * mt * t * p1.getY() + t2 * p2.getY();
-      smoothed.push_back({x, y});
-    }
-    smoothed.push_back(p2); // Ajouter le point final
-  }
-
-  return smoothed;
-}
-// _____________________________________________________________________________
 void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
                                size_t x, size_t y,
                                vector_tile::Tile_Layer* layer, Params params,
@@ -582,7 +508,7 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
                                std::map<std::string, size_t>& vals) {
   if (l.size() < 2) return;
 
-  // skip zero-width geometries
+  // Skip zero-width geometries
   if ((layer->name() == "lines" || layer->name() == "inner-connections") &&
       params.count("width") && params.find("width")->second == "0")
     return;
@@ -614,28 +540,10 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
   for (const auto& ll : croppedLines) {
     if (ll.size() < 2) continue;
 
-    // Ajouter des points intermédiaires pour lisser la géométrie
-    util::geo::Line<double> smoothed;
-    const int pointsPerSegment = 8; // Nombre de points à ajouter par segment
-    smoothed.push_back(ll[0]); // Point de départ
+    // Pas de lissage, juste une simplification légère
+    auto finalLine = util::geo::simplify(ll, tw / TILE_RES);
 
-    for (size_t i = 1; i < ll.size(); i++) {
-      double dx = (ll[i].getX() - ll[i - 1].getX()) / (pointsPerSegment + 1);
-      double dy = (ll[i].getY() - ll[i - 1].getY()) / (pointsPerSegment + 1);
-
-      // Ajouter des points intermédiaires
-      for (int j = 1; j <= pointsPerSegment; j++) {
-        double x = ll[i - 1].getX() + j * dx;
-        double y = ll[i - 1].getY() + j * dy;
-        smoothed.push_back({x, y});
-      }
-      smoothed.push_back(ll[i]); // Point de fin du segment
-    }
-
-    // Simplification légère pour éviter trop de points, mais garder la fluidité
-    auto l = util::geo::simplify(smoothed, tw / TILE_RES); // Réduire si besoin
-
-    if (l.size() < 2 || (l.size() == 2 && util::geo::dist(l[0], l[1]) < tw / TILE_RES)) continue;
+    if (finalLine.size() < 2 || (finalLine.size() == 2 && util::geo::dist(finalLine[0], finalLine[1]) < tw / TILE_RES)) continue;
 
     auto feature = layer->add_features();
 
@@ -672,16 +580,16 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
 
     // MoveTo (premier point)
     feature->add_geometry((1 & 0x7) | (1 << 3));
-    int px = (l[0].getX() - ox) * (TILE_RES / tw);
-    int py = TILE_RES - (l[0].getY() - oy) * (TILE_RES / tw);
+    int px = (finalLine[0].getX() - ox) * (TILE_RES / tw);
+    int py = TILE_RES - (finalLine[0].getY() - oy) * (TILE_RES / tw);
     feature->add_geometry((px << 1) ^ (px >> 31));
     feature->add_geometry((py << 1) ^ (py >> 31));
 
     // LineTo (points suivants)
-    feature->add_geometry((2 & 0x7) | ((l.size() - 1) << 3));
-    for (size_t i = 1; i < l.size(); i++) {
-      int dx = ((l[i].getX() - ox) * (TILE_RES / tw)) - px;
-      int dy = (TILE_RES - (l[i].getY() - oy) * (TILE_RES / tw)) - py;
+    feature->add_geometry((2 & 0x7) | ((finalLine.size() - 1) << 3));
+    for (size_t i = 1; i < finalLine.size(); i++) {
+      int dx = ((finalLine[i].getX() - ox) * (TILE_RES / tw)) - px;
+      int dy = (TILE_RES - (finalLine[i].getY() - oy) * (TILE_RES / tw)) - py;
 
       px += dx;
       py += dy;
