@@ -182,27 +182,12 @@ void MvtRenderer::outputEdges(const RenderGraph& outG) {
 // _____________________________________________________________________________
 void MvtRenderer::renderNodeConnections(const RenderGraph& outG,
                                         const LineNode* n) {
-  // Centre du nœud comme point de convergence
-  DPoint center = *n->pl().getGeom();
-
-  // Récupérer les géométries internes, mais les forcer à passer par le centre
   auto geoms = outG.innerGeoms(n, _cfg->innerGeometryPrecision * _res);
-
-  // Redéfinir chaque géométrie pour converger au centre
-  std::vector<InnerGeom> adjustedGeoms;
-  for (const auto& geom : geoms) {
-    PolyLine<double> pl;
-    pl << geom.geom.front() << center << geom.geom.back();
-    InnerGeom adjustedGeom = geom;
-    adjustedGeom.geom = pl; // Remplacer la géométrie par une version centrée
-    adjustedGeoms.push_back(adjustedGeom);
-  }
-
-  // Passer les géométries ajustées aux cliques
-  for (auto& clique : getInnerCliques(n, adjustedGeoms, 9999)) {
+  for (auto& clique : getInnerCliques(n, geoms, 9999)) {
     renderClique(clique, n);
   }
 }
+
 // _____________________________________________________________________________
 std::multiset<InnerClique> MvtRenderer::getInnerCliques(
     const shared::linegraph::LineNode* n, std::vector<InnerGeom> pool,
@@ -278,10 +263,6 @@ bool MvtRenderer::isNextTo(const InnerGeom& a, const InnerGeom& b) const {
     if ((aSlotFrom - bSlotFrom == 1 && bSlotTo - aSlotTo == 1) ||
         (bSlotFrom - aSlotFrom == 1 && aSlotTo - bSlotTo == 1)) {
       return true;
-      double ang1 = fabs(util::geo::angBetween(a.geom.front(), a.geom.back()));
-      double ang2 = fabs(util::geo::angBetween(b.geom.front(), b.geom.back()));
-
-      return ang1 > THRESHOLD && ang2 > THRESHOLD;
     }
   }
 
@@ -289,10 +270,6 @@ bool MvtRenderer::isNextTo(const InnerGeom& a, const InnerGeom& b) const {
     if ((aSlotFrom - bSlotTo == 1 && bSlotFrom - aSlotTo == 1) ||
         (bSlotTo - aSlotFrom == 1 && aSlotTo - bSlotFrom == 1)) {
       return true;
-      double ang1 = fabs(util::geo::angBetween(a.geom.front(), a.geom.back()));
-      double ang2 = fabs(util::geo::angBetween(b.geom.front(), b.geom.back()));
-
-      return ang1 > THRESHOLD && ang2 > THRESHOLD;
     }
   }
 
@@ -317,6 +294,7 @@ bool MvtRenderer::hasSameOrigin(const InnerGeom& a, const InnerGeom& b) const {
   return false;
 }
 
+// _____________________________________________________________________________
 void MvtRenderer::renderClique(const InnerClique& cc, const LineNode* n) {
   for (const auto& geom : cc.geoms) {
     PolyLine<double> pl = geom.geom;
@@ -351,21 +329,15 @@ void MvtRenderer::renderClique(const InnerClique& cc, const LineNode* n) {
     addFeature({pl.getLine(), "inner-connections", params});
   }
 }
-// _____________________________________________________________________________
-void MvtRenderer::renderNodeConnections(const RenderGraph& outG,
-                                        const LineNode* n) {
-  auto geoms = outG.innerGeoms(n, _cfg->innerGeometryPrecision * _res);
-  for (auto& clique : getInnerCliques(n, geoms, 9999)) {
-    renderClique(clique, n);
-  }
-}
 
 // _____________________________________________________________________________
 void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
                                      const shared::linegraph::LineEdge* e) {
-  // Centres des nœuds source et destination
-  DPoint fromCenter = *e->getFrom()->pl().getGeom();
-  DPoint toCenter = *e->getTo()->pl().getGeom();
+  const shared::linegraph::NodeFront* nfTo = e->getTo()->pl().frontFor(e);
+  const shared::linegraph::NodeFront* nfFrom = e->getFrom()->pl().frontFor(e);
+
+  assert(nfTo);
+  assert(nfFrom);
 
   PolyLine<double> center(*e->pl().getGeom());
 
@@ -379,22 +351,37 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
 
   for (size_t i = 0; i < e->pl().getLines().size(); i++) {
     const auto& lo = e->pl().lineOccAtPos(i);
-    const Line* line = lo.line;
 
-    // Construire la ligne avec offset, mais connectée aux centres
-    PolyLine<double> p;
-    p << fromCenter; // Début au centre du nœud source
-    for (size_t j = 1; j < center.getLine().size() - 1; j++) {
-      p << center.getLine()[j]; // Points intermédiaires
-    }
-    p << toCenter; // Fin au centre du nœud destination
+    const Line* line = lo.line;
+    PolyLine<double> p = center;
 
     if (p.getLength() < 0.01) continue;
 
-    // Appliquer l’offset pour séparer les lignes parallèles
     double offset =
         -(o - oo / 2.0 - ((2 * outlineW + _cfg->lineWidth) * _res) / 2.0);
+
     p.offsetPerp(offset);
+
+    auto iSects = nfTo->geom.getIntersections(p);
+    if (iSects.size() > 0) {
+      p = p.getSegment(0, iSects.begin()->totalPos);
+    } else {
+      p << nfTo->geom.projectOn(p.back()).p;
+    }
+
+    auto iSects2 = nfFrom->geom.getIntersections(p);
+    if (iSects2.size() > 0) {
+      p = p.getSegment(iSects2.begin()->totalPos, 1);
+    } else {
+      p >> nfFrom->geom.projectOn(p.front()).p;
+    }
+
+    std::string css, oCss;
+
+    if (!lo.style.isNull()) {
+      css = lo.style.get().getCss();
+      oCss = lo.style.get().getOutlineCss();
+    }
 
     if (_cfg->outlineWidth > 0) {
       Params paramsOut;
