@@ -582,7 +582,7 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
                                std::map<std::string, size_t>& vals) {
   if (l.size() < 2) return;
 
-  // Skip zero-width geometries
+  // skip zero-width geometries
   if ((layer->name() == "lines" || layer->name() == "inner-connections") &&
       params.count("width") && params.find("width")->second == "0")
     return;
@@ -614,13 +614,28 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
   for (const auto& ll : croppedLines) {
     if (ll.size() < 2) continue;
 
-    // Appliquer un lissage avec Bézier quadratique
-    auto smoothed = smoothBezier(ll, 8); // 8 points par segment pour une bonne fluidité
+    // Ajouter des points intermédiaires pour lisser la géométrie
+    util::geo::Line<double> smoothed;
+    const int pointsPerSegment = 8; // Nombre de points à ajouter par segment
+    smoothed.push_back(ll[0]); // Point de départ
 
-    // Simplification légère pour éviter un excès de points, mais préserver les courbes
-    auto finalLine = util::geo::simplify(smoothed, tw / TILE_RES * 4); // Tolérance augmentée
+    for (size_t i = 1; i < ll.size(); i++) {
+      double dx = (ll[i].getX() - ll[i - 1].getX()) / (pointsPerSegment + 1);
+      double dy = (ll[i].getY() - ll[i - 1].getY()) / (pointsPerSegment + 1);
 
-    if (finalLine.size() < 2 || (finalLine.size() == 2 && util::geo::dist(finalLine[0], finalLine[1]) < tw / TILE_RES)) continue;
+      // Ajouter des points intermédiaires
+      for (int j = 1; j <= pointsPerSegment; j++) {
+        double x = ll[i - 1].getX() + j * dx;
+        double y = ll[i - 1].getY() + j * dy;
+        smoothed.push_back({x, y});
+      }
+      smoothed.push_back(ll[i]); // Point de fin du segment
+    }
+
+    // Simplification légère pour éviter trop de points, mais garder la fluidité
+    auto l = util::geo::simplify(smoothed, tw / TILE_RES); // Réduire si besoin
+
+    if (l.size() < 2 || (l.size() == 2 && util::geo::dist(l[0], l[1]) < tw / TILE_RES)) continue;
 
     auto feature = layer->add_features();
 
@@ -657,16 +672,16 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
 
     // MoveTo (premier point)
     feature->add_geometry((1 & 0x7) | (1 << 3));
-    int px = (finalLine[0].getX() - ox) * (TILE_RES / tw);
-    int py = TILE_RES - (finalLine[0].getY() - oy) * (TILE_RES / tw);
+    int px = (l[0].getX() - ox) * (TILE_RES / tw);
+    int py = TILE_RES - (l[0].getY() - oy) * (TILE_RES / tw);
     feature->add_geometry((px << 1) ^ (px >> 31));
     feature->add_geometry((py << 1) ^ (py >> 31));
 
     // LineTo (points suivants)
-    feature->add_geometry((2 & 0x7) | ((finalLine.size() - 1) << 3));
-    for (size_t i = 1; i < finalLine.size(); i++) {
-      int dx = ((finalLine[i].getX() - ox) * (TILE_RES / tw)) - px;
-      int dy = (TILE_RES - (finalLine[i].getY() - oy) * (TILE_RES / tw)) - py;
+    feature->add_geometry((2 & 0x7) | ((l.size() - 1) << 3));
+    for (size_t i = 1; i < l.size(); i++) {
+      int dx = ((l[i].getX() - ox) * (TILE_RES / tw)) - px;
+      int dy = (TILE_RES - (l[i].getY() - oy) * (TILE_RES / tw)) - py;
 
       px += dx;
       py += dy;
