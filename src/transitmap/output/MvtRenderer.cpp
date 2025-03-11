@@ -593,10 +593,9 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
 // _____________________________________________________________________________
 std::string MvtRenderer::getLineClass(const std::string& id) const {
   auto i = lineClassIds.find(id);
-  if (i != lineClassIds.end()) return "line-" + std::toString(i->second);
-
+  if (i != lineClassIds.end()) return "line-" + util::toString(i->second);
   lineClassIds[id] = ++lineClassId;
-  return "line-" + std::toString(lineClassId);
+  return "line-" + util::toString(lineClassId);
 }
 
 // _____________________________________________________________________________
