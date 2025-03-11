@@ -114,8 +114,7 @@ std::vector<InnerGeom> RenderGraph::innerGeoms(const LineNode* n,
         DPoint end = linePosOn(*n->pl().frontFor(p.edge), p.line, false);
         pl << start << center << end;
 
-        // Corriger l'ordre des arguments pour InnerGeom
-        InnerGeom is(pl, o, p, o.edge->pl().linePos(o.line), p.edge->pl().linePos(p.line));
+        InnerGeom is(o, p, pl, o.edge->pl().linePos(o.line), p.edge->pl().linePos(p.line));
         ret.push_back(is);
 
         processed[lineOcc.line].insert(p.edge);
@@ -126,7 +125,7 @@ std::vector<InnerGeom> RenderGraph::innerGeoms(const LineNode* n,
         DPoint start = linePosOn(*n->pl().frontFor(o.edge), o.line, false);
         PolyLine<double> pl;
         pl << start << center; // Ligne simple vers le centre
-        InnerGeom is(pl, o, Partner(), o.edge->pl().linePos(o.line), 0);
+        InnerGeom is(o, Partner(), pl, o.edge->pl().linePos(o.line), 0);
         if (is.geom.longerThan(0)) {
           ret.push_back(is);
         }
