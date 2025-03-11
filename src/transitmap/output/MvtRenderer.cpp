@@ -552,15 +552,9 @@ util::geo::Line<double> smoothBezier(const util::geo::Line<double>& input, int p
     // Si possible, utilise le point précédent ou suivant pour orienter la courbe
     if (i > 1) {
       DPoint prev = input[i - 2];
-      // Calcul du point de contrôle basé sur la direction précédente
-      double dx = p0.getX() - prev.getX();
-      double dy = p0.getY() - prev.getY();
-      p1 = DPoint(p0.getX() + dx * 0.5, p0.getY() + dy * 0.5);
+      p1 = p0 + (p0 - prev) * 0.5; // Point de contrôle basé sur la direction précédente
     } else {
-      // Point milieu si pas de précédent
-      double dx = p2.getX() - p0.getX();
-      double dy = p2.getY() - p0.getY();
-      p1 = DPoint(p0.getX() + dx * 0.5, p0.getY() + dy * 0.5);
+      p1 = p0 + (p2 - p0) * 0.5; // Point milieu si pas de précédent
     }
 
     // Générer des points le long de la courbe de Bézier quadratique
