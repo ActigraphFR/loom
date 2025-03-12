@@ -451,8 +451,15 @@ std::vector<Polygon<double>> RenderGraph::getStopGeoms(
 
 // _____________________________________________________________________________
 double RenderGraph::getTotalWidth(const LineEdge* e) const {
-  return (2.0 * _defOutlineWidth + _defWidth) * e->pl().getLines().size() +
-         _defSpacing * (e->pl().getLines().size() - 1);
+  double totalWidth = 0;
+  for (size_t i = 0; i < e->pl().getLines().size(); i++) {
+    totalWidth += getWidth(e, i); // Largeur spécifique à chaque ligne
+    if (i < e->pl().getLines().size() - 1) {
+      totalWidth += _defSpacing; // Espacement entre les lignes
+    }
+    totalWidth += 2 * _defOutlineWidth; // Contours pour chaque ligne
+  }
+  return totalWidth;
 }
 
 // _____________________________________________________________________________
@@ -482,9 +489,20 @@ size_t RenderGraph::getConnCardinality(const LineNode* n) {
 }
 
 // _____________________________________________________________________________
+// Nouvelle surcharge pour obtenir la largeur d'une ligne spécifique à une position
+double RenderGraph::getWidth(const shared::linegraph::LineEdge* e, size_t pos) const {
+  const auto& lo = e->pl().lineOccAtPos(pos);
+  if (lo.line->typeLine() == "high") {
+    return _defWidth * 2.0; // Double l'épaisseur pour typeLine=high
+  }
+  return _defWidth;
+}
+
+// _____________________________________________________________________________
+// Version existante conservée pour compatibilité
 double RenderGraph::getWidth(const shared::linegraph::LineEdge* e) const {
   UNUSED(e);
-  return _defWidth;
+  return _defWidth; // Retourne la largeur par défaut si aucune position n'est spécifiée
 }
 
 // _____________________________________________________________________________

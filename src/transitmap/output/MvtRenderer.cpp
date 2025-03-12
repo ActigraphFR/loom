@@ -356,27 +356,28 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
 
   PolyLine<double> center(*e->pl().getGeom());
 
-  double lineW = _cfg->lineWidth;
   double outlineW = _cfg->outlineWidth;
   double lineSpc = _cfg->lineSpacing;
-  double offsetStep = (lineW + 2 * outlineW + lineSpc) * _res;
-  double oo = outG.getTotalWidth(e);
-
-  double o = oo;
+  double totalWidth = outG.getTotalWidth(e); // Largeur totale dynamique
+  double o = totalWidth / 2.0; // Point de départ centré
 
   for (size_t i = 0; i < e->pl().getLines().size(); i++) {
     const auto& lo = e->pl().lineOccAtPos(i);
-
     const Line* line = lo.line;
     PolyLine<double> p = center;
 
     if (p.getLength() < 0.01) continue;
 
-    double offset =
-        -(o - oo / 2.0 - ((2 * outlineW + _cfg->lineWidth) * _res) / 2.0);
+    // Calculer la largeur spécifique de la ligne en utilisant RenderGraph
+    double lineW = outG.getWidth(e, i); // Utilise la nouvelle surcharge
+    double offsetStep = (lineW + 2 * outlineW + lineSpc) * _res; // Offset ajusté
+
+    // Calculer l'offset pour cette ligne
+    double offset = -(o - (lineW * _res + 2 * outlineW * _res) / 2.0);
 
     p.offsetPerp(offset);
 
+    // Raccourcir la ligne aux intersections avec les fronts
     auto iSects = nfTo->geom.getIntersections(p);
     if (iSects.size() > 0) {
       p = p.getSegment(0, iSects.begin()->totalPos);
@@ -391,13 +392,7 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
       p >> nfFrom->geom.projectOn(p.front()).p;
     }
 
-    std::string css, oCss;
-
-    if (!lo.style.isNull()) {
-      css = lo.style.get().getCss();
-      oCss = lo.style.get().getOutlineCss();
-    }
-
+    // Rendu de l'outline (si activé)
     if (_cfg->outlineWidth > 0) {
       Params paramsOut;
       paramsOut["color"] = "000000";
@@ -405,8 +400,7 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
       paramsOut["line"] = line->label();
       paramsOut["lineCap"] = "butt";
       paramsOut["class"] = getLineClass(line->id());
-      paramsOut["width"] =
-          util::toString((2.0 * _cfg->outlineWidth + _cfg->lineWidth));
+      paramsOut["width"] = util::toString((2.0 * _cfg->outlineWidth + lineW)); // Largeur dynamique
 
       if (e->pl().getComponent() != std::numeric_limits<uint32_t>::max())
         paramsOut["component"] = util::toString(e->pl().getComponent());
@@ -414,20 +408,22 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
       addFeature({p.getLine(), "lines", paramsOut});
     }
 
+    // Rendu de la ligne principale
     Params params;
     params["color"] = line->color();
     params["line-color"] = line->color();
     params["line"] = line->label();
     params["lineCap"] = "round";
     params["class"] = getLineClass(line->id());
-    params["width"] = util::toString(_cfg->lineWidth);
+    params["width"] = util::toString(lineW); // Largeur dynamique
 
     if (e->pl().getComponent() != std::numeric_limits<uint32_t>::max())
       params["component"] = util::toString(e->pl().getComponent());
 
     addFeature({p.getLine(), "lines", params});
 
-    o -= offsetStep;
+    // Décrémenter l'offset pour la prochaine ligne
+    o -= (lineW * _res + 2 * outlineW * _res + lineSpc * _res);
   }
 }
 

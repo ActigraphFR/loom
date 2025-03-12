@@ -53,7 +53,9 @@ class RenderGraph : public shared::linegraph::LineGraph {
 
   double getTotalWidth(const shared::linegraph::LineEdge* e) const;
 
-  double getWidth(const shared::linegraph::LineEdge* e) const;
+  // Surcharge pour obtenir la largeur d'une ligne spécifique à une position
+  double getWidth(const shared::linegraph::LineEdge* e, size_t pos) const;
+  double getWidth(const shared::linegraph::LineEdge* e) const; // Ancienne version conservée
   double getSpacing(const shared::linegraph::LineEdge* e) const;
   double getOutlineWidth(const shared::linegraph::LineEdge* e) const;
 
