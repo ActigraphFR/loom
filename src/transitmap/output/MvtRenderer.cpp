@@ -305,13 +305,47 @@ bool MvtRenderer::hasSameOrigin(const InnerGeom& a, const InnerGeom& b) const {
 void MvtRenderer::renderClique(const InnerClique& cc, const LineNode* n) {
   std::multiset<InnerClique> renderCliques = getInnerCliques(n, cc.geoms, 0);
   for (const auto& c : renderCliques) {
-    // Point de croisement unique : le centre du nœud
-    DPoint center = *n->pl().getGeom();
+    // the longest geom will be the ref geom
+    InnerGeom ref = c.geoms[0];
+    for (size_t i = 1; i < c.geoms.size(); i++) {
+      if (c.geoms[i].geom.getLength() > ref.geom.getLength()) ref = c.geoms[i];
+    }
 
     for (size_t i = 0; i < c.geoms.size(); i++) {
-      // Construire une ligne simple : début → centre → fin
-      PolyLine<double> pl;
-      pl << c.geoms[i].geom.front() << center << c.geoms[i].geom.back();
+      PolyLine<double> pl(c.geoms[i].geom);
+
+      if (ref.geom.getLength() >
+          (_cfg->lineWidth + 2 * _cfg->outlineWidth + _cfg->lineSpacing) *
+              _res * 4) {
+        double off =
+            -(_cfg->lineWidth + _cfg->lineSpacing + 2 * _cfg->outlineWidth) *
+            _res *
+            (static_cast<int>(c.geoms[i].slotFrom) -
+             static_cast<int>(ref.slotFrom));
+
+        if (ref.from.edge->getTo() == n) off = -off;
+
+        pl = ref.geom.offsetted(off);
+
+        if (pl.getLength() / c.geoms[i].geom.getLength() > 1.5)
+          pl = c.geoms[i].geom;
+
+        std::set<LinePoint<double>, LinePointCmp<double>> a;
+        std::set<LinePoint<double>, LinePointCmp<double>> b;
+
+        if (ref.from.edge)
+          a = n->pl().frontFor(ref.from.edge)->geom.getIntersections(pl);
+        if (ref.to.edge)
+          b = n->pl().frontFor(ref.to.edge)->geom.getIntersections(pl);
+
+        if (a.size() > 0 && b.size() > 0) {
+          pl = pl.getSegment(a.begin()->totalPos, b.begin()->totalPos);
+        } else if (a.size() > 0) {
+          pl = pl.getSegment(a.begin()->totalPos, 1);
+        } else if (b.size() > 0) {
+          pl = pl.getSegment(0, b.begin()->totalPos);
+        }
+      }
 
       if (_cfg->outlineWidth > 0) {
         Params paramsOut;
@@ -508,27 +542,33 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
                                std::map<std::string, size_t>& vals) {
   if (l.size() < 2) return;
 
-  // Skip zero-width geometries
+  // skip zero-width geometries
   if ((layer->name() == "lines" || layer->name() == "inner-connections") &&
       params.count("width") && params.find("width")->second == "0")
     return;
 
   double tw = (WEB_MERC_EXT * 2.0) / static_cast<double>(1 << z);
+
   double ox = static_cast<double>(x) * tw - WEB_MERC_EXT;
   double oy = static_cast<double>(y) * tw - WEB_MERC_EXT;
 
-  // Crop lines to tile bounds
+  // crop
   std::vector<util::geo::Line<double>> croppedLines;
+
+  // pad!
   auto box = util::geo::pad(getBox(z, x, y), 50 * (tw / TILE_RES));
 
   if (layer->name() == "stations") {
     croppedLines.push_back(l);
   } else {
     croppedLines.push_back({});
+
     for (size_t i = 1; i < l.size(); i++) {
       const auto& curP = l[i];
       const auto& prevP = l[i - 1];
-      if (util::geo::intersects(util::geo::LineSegment<double>{prevP, curP}, box)) {
+
+      if (util::geo::intersects(util::geo::LineSegment<double>{curP, prevP},
+                                box)) {
         croppedLines.back().push_back(prevP);
         croppedLines.back().push_back(curP);
       } else if (croppedLines.back().size() > 0) {
@@ -538,16 +578,17 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
   }
 
   for (const auto& ll : croppedLines) {
+    // skip point-like geometries
     if (ll.size() < 2) continue;
 
-    // Pas de lissage, juste une simplification légère
-    auto finalLine = util::geo::simplify(ll, tw / TILE_RES);
+    auto l = util::geo::simplify(ll, 2 * tw / TILE_RES);
 
-    if (finalLine.size() < 2 || (finalLine.size() == 2 && util::geo::dist(finalLine[0], finalLine[1]) < tw / TILE_RES)) continue;
+    // skip point-like geometries
+    if (ll.size() < 2) continue;
+    if (l.size() == 2 && util::geo::dist(l[0], l[1]) < tw / TILE_RES) continue;
 
     auto feature = layer->add_features();
 
-    // Ajouter les paramètres (tags)
     for (const auto& kv : params) {
       auto kit = keys.find(kv.first);
       auto vit = vals.find(kv.second);
@@ -572,24 +613,26 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
     }
 
     feature->set_id(1);
+
     if (layer->name() == "stations") {
       feature->set_type(vector_tile::Tile_GeomType_POLYGON);
     } else {
       feature->set_type(vector_tile::Tile_GeomType_LINESTRING);
     }
 
-    // MoveTo (premier point)
+    // MoveTo, 1x
     feature->add_geometry((1 & 0x7) | (1 << 3));
-    int px = (finalLine[0].getX() - ox) * (TILE_RES / tw);
-    int py = TILE_RES - (finalLine[0].getY() - oy) * (TILE_RES / tw);
+    int px = (l[0].getX() - ox) * (TILE_RES / tw);
+    int py = TILE_RES - (l[0].getY() - oy) * (TILE_RES / tw);
     feature->add_geometry((px << 1) ^ (px >> 31));
     feature->add_geometry((py << 1) ^ (py >> 31));
 
-    // LineTo (points suivants)
-    feature->add_geometry((2 & 0x7) | ((finalLine.size() - 1) << 3));
-    for (size_t i = 1; i < finalLine.size(); i++) {
-      int dx = ((finalLine[i].getX() - ox) * (TILE_RES / tw)) - px;
-      int dy = (TILE_RES - (finalLine[i].getY() - oy) * (TILE_RES / tw)) - py;
+    // LineTo, l.size() - 1 times
+    feature->add_geometry((2 & 0x7) | ((l.size() - 1) << 3));
+
+    for (size_t i = 1; i < l.size(); i++) {
+      int dx = ((l[i].getX() - ox) * (TILE_RES / tw)) - px;
+      int dy = (TILE_RES - (l[i].getY() - oy) * (TILE_RES / tw)) - py;
 
       px += dx;
       py += dy;
@@ -599,7 +642,7 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
     }
 
     if (layer->name() == "stations") {
-      // ClosePath pour les polygones
+      // close path
       feature->add_geometry((7 & 0x7) | (1 << 3));
     }
   }
