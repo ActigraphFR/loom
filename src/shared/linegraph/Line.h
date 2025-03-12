@@ -15,7 +15,7 @@ class Line {
  public:
   Line(const std::string& id, const std::string& label,
        const std::string& color)
-      : _id(id), _label(label), _color(color) {}, _typeLine("normal") {}
+      : _id(id), _label(label), _color(color), _typeLine("normal") {}
 
   const std::string& id() const;
   const std::string& label() const;
