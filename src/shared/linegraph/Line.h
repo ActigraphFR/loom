@@ -20,13 +20,13 @@ class Line {
   const std::string& id() const { return _id; }
   const std::string& label() const { return _label; }
   const std::string& color() const { return _color; }
-  const std::string& typeLine() const { return _typeLine; } // Getter pour typeLine
+  const std::string& typeLine() const { return _typeLine; }
 
   void setColor(const std::string& c) { _color = c; }
-  void setTypeLine(const std::string& t) { _typeLine = t; } // Setter pour typeLine
+  void setTypeLine(const std::string& t) { _typeLine = t; }
 
  private:
-  std::string _id, _label, _color, _typeLine; // Ajout de _typeLine
+  std::string _id, _label, _color, _typeLine;
 };
 }
 }
