@@ -552,7 +552,7 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
   double ox = static_cast<double>(x) * tw - WEB_MERC_EXT;
   double oy = static_cast<double>(y) * tw - WEB_MERC_EXT;
 
-  // crop
+  // Crop lines to tile bounds
   std::vector<util::geo::Line<double>> croppedLines;
 
   // pad!
@@ -581,12 +581,25 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
     // skip point-like geometries
     if (ll.size() < 2) continue;
 
-    auto l = util::geo::simplify(ll, 2 * tw / TILE_RES);
-
-    // skip point-like geometries
-    if (ll.size() < 2) continue;
-    if (l.size() == 2 && util::geo::dist(l[0], l[1]) < tw / TILE_RES) continue;
-
+    // Ajouter des points intermédiaires pour lisser la géométrie
+        util::geo::Line<double> smoothed;
+        const int pointsPerSegment = 8; // Nombre de points à ajouter par segment
+        smoothed.push_back(ll[0]); // Point de départ
+        for (size_t i = 1; i < ll.size(); i++) {
+          double dx = (ll[i].getX() - ll[i - 1].getX()) / (pointsPerSegment + 1);
+          double dy = (ll[i].getY() - ll[i - 1].getY()) / (pointsPerSegment + 1);
+          // Ajouter des points intermédiaires
+          for (int j = 1; j <= pointsPerSegment; j++) {
+            double x = ll[i - 1].getX() + j * dx;
+            double y = ll[i - 1].getY() + j * dy;
+            smoothed.push_back({x, y});
+          }
+          smoothed.push_back(ll[i]); // Point de fin du segment
+        }
+        // Simplification légère pour éviter trop de points, mais garder la fluidité
+        auto l = util::geo::simplify(smoothed, tw / TILE_RES); // Réduire si besoin
+        if (l.size() < 2 || (l.size() == 2 && util::geo::dist(l[0], l[1]) < tw / TILE_RES)) continue;
+    
     auto feature = layer->add_features();
 
     for (const auto& kv : params) {
