@@ -1307,16 +1307,50 @@ size_t LineGraph::numConnExcs() const {
 }
 
 // _____________________________________________________________________________
-void LineGraph::extractLines(const nlohmann::json::object_t& props, LineEdge* e,
-                             const std::map<std::string, LineNode*>& idMap) {
-  auto i = props.find("lines");
+void LineGraph::extractLine(const nlohmann::json::object_t& line, LineEdge* e,
+                            const std::map<std::string, LineNode*>& idMap) {
+  std::string id = getLineId(line);
+  std::string color = getLineColor(line);
+  std::string label = getLineLabel(line);
+  std::string typeLine = "normal"; // Valeur par défaut
 
-  if (i == props.end()) {
-    extractLine(props, e, idMap);
+  // Lire typeLine si présent dans le JSON
+  if (line.count("typeLine")) {
+    typeLine = line.at("typeLine").get<std::string>();
+  } else if (line.count("\"typeLine\"")) {
+    typeLine = line.at("\"typeLine\"").get<std::string>();
+  } else if (line.count("?typeLine")) {
+    typeLine = line.at("?typeLine").get<std::string>();
+  } else if (line.count("\"?typeLine\"")) {
+    typeLine = line.at("\"?typeLine\"").get<std::string>();
+  }
+  typeLine = util::trim(typeLine, "\"");
+
+  const Line* l = getLine(id);
+  if (!l) {
+    l = new Line(id, label, color);
+    const_cast<Line*>(l)->setTypeLine(typeLine); // Assigner typeLine
+    addLine(l);
+  } else if (typeLine != "normal") {
+    // Mettre à jour typeLine si une valeur explicite est fournie
+    const_cast<Line*>(l)->setTypeLine(typeLine);
+  }
+
+  LineNode* dir = 0;
+
+  if (line.count("direction") && idMap.count(line.at("direction"))) {
+    dir = idMap.at(line.at("direction").get<std::string>());
+  }
+
+  if (line.count("style") || line.count("outline-style")) {
+    shared::style::LineStyle ls;
+
+    if (line.count("style")) ls.setCss(line.at("style"));
+    if (line.count("outline-style")) ls.setOutlineCss(line.at("outline-style"));
+
+    e->pl().addLine(l, dir, ls);
   } else {
-    for (auto line : i->second) {
-      extractLine(line, e, idMap);
-    }
+    e->pl().addLine(l, dir);
   }
 }
 

@@ -432,6 +432,9 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
       oCss = lo.style.get().getOutlineCss();
     }
 
+    // Déterminer l'épaisseur en fonction de typeLine
+    double width = (line->typeLine() == "high") ? lineW * 2 : lineW;
+
     if (_cfg->outlineWidth > 0) {
       Params paramsOut;
       paramsOut["color"] = "000000";
@@ -439,8 +442,7 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
       paramsOut["line"] = line->label();
       paramsOut["lineCap"] = "butt";
       paramsOut["class"] = getLineClass(line->id());
-      paramsOut["width"] =
-          util::toString((2.0 * _cfg->outlineWidth + _cfg->lineWidth));
+      paramsOut["width"] = util::toString((2.0 * _cfg->outlineWidth + width));
 
       if (e->pl().getComponent() != std::numeric_limits<uint32_t>::max())
         paramsOut["component"] = util::toString(e->pl().getComponent());
@@ -454,9 +456,9 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
     params["line"] = line->label();
     params["lineCap"] = "round";
     params["class"] = getLineClass(line->id());
-    params["width"] = util::toString(_cfg->lineWidth);
+    params["width"] = util::toString(width);
 
-    if (e->pl().getComponent() != std::numeric_limits<uint32_t>::max())
+    if (e->pl().getComponent() != std::limits<uint32_t>::max())
       params["component"] = util::toString(e->pl().getComponent());
 
     addFeature({p.getLine(), "lines", params});
@@ -599,7 +601,7 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
         // Simplification légère pour éviter trop de points, mais garder la fluidité
         auto l = util::geo::simplify(smoothed, tw / TILE_RES); // Réduire si besoin
         if (l.size() < 2 || (l.size() == 2 && util::geo::dist(l[0], l[1]) < tw / TILE_RES)) continue;
-    
+
     auto feature = layer->add_features();
 
     for (const auto& kv : params) {
