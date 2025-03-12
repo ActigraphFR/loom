@@ -5,6 +5,7 @@
 #ifdef PROTOBUF_FOUND
 
 #include <stdint.h>
+#include <limits>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -458,7 +459,7 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
     params["class"] = getLineClass(line->id());
     params["width"] = util::toString(width);
 
-    if (e->pl().getComponent() != std::limits<uint32_t>::max())
+    if (e->pl().getComponent() != std::numeric_limits<uint32_t>::max())
       params["component"] = util::toString(e->pl().getComponent());
 
     addFeature({p.getLine(), "lines", params});
