@@ -15,19 +15,15 @@ class Line {
  public:
   Line(const std::string& id, const std::string& label,
        const std::string& color)
-      : _id(id), _label(label), _color(color), _typeLine("normal") {}
+      : _id(id), _label(label), _color(color) {}
 
   const std::string& id() const;
   const std::string& label() const;
   const std::string& color() const;
-  const std::string& typeLine() const; // Nouveau getter pour typeLine
-
   void setColor(const std::string& c) { _color = c; };
-  void setTypeLine(const std::string& tl) { _typeLine = tl; } // Nouveau setter pour typeLine
 
  private:
   std::string _id, _label, _color;
-  std::string _typeLine; // Nouveau champ
 };
 }
 }

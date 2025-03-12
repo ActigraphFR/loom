@@ -5,7 +5,6 @@
 #ifdef PROTOBUF_FOUND
 
 #include <stdint.h>
-#include <limits>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -433,9 +432,6 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
       oCss = lo.style.get().getOutlineCss();
     }
 
-    // Déterminer l'épaisseur en fonction de typeLine
-    double width = (line->typeLine() == "high") ? lineW * 2 : lineW;
-
     if (_cfg->outlineWidth > 0) {
       Params paramsOut;
       paramsOut["color"] = "000000";
@@ -443,7 +439,8 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
       paramsOut["line"] = line->label();
       paramsOut["lineCap"] = "butt";
       paramsOut["class"] = getLineClass(line->id());
-      paramsOut["width"] = util::toString((2.0 * _cfg->outlineWidth + width));
+      paramsOut["width"] =
+          util::toString((2.0 * _cfg->outlineWidth + _cfg->lineWidth));
 
       if (e->pl().getComponent() != std::numeric_limits<uint32_t>::max())
         paramsOut["component"] = util::toString(e->pl().getComponent());
@@ -457,7 +454,7 @@ void MvtRenderer::renderEdgeTripGeom(const RenderGraph& outG,
     params["line"] = line->label();
     params["lineCap"] = "round";
     params["class"] = getLineClass(line->id());
-    params["width"] = util::toString(width);
+    params["width"] = util::toString(_cfg->lineWidth);
 
     if (e->pl().getComponent() != std::numeric_limits<uint32_t>::max())
       params["component"] = util::toString(e->pl().getComponent());
@@ -555,7 +552,7 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
   double ox = static_cast<double>(x) * tw - WEB_MERC_EXT;
   double oy = static_cast<double>(y) * tw - WEB_MERC_EXT;
 
-  // Crop lines to tile bounds
+  // crop
   std::vector<util::geo::Line<double>> croppedLines;
 
   // pad!
@@ -584,24 +581,11 @@ void MvtRenderer::printFeature(const util::geo::Line<double>& l, size_t z,
     // skip point-like geometries
     if (ll.size() < 2) continue;
 
-    // Ajouter des points intermédiaires pour lisser la géométrie
-        util::geo::Line<double> smoothed;
-        const int pointsPerSegment = 8; // Nombre de points à ajouter par segment
-        smoothed.push_back(ll[0]); // Point de départ
-        for (size_t i = 1; i < ll.size(); i++) {
-          double dx = (ll[i].getX() - ll[i - 1].getX()) / (pointsPerSegment + 1);
-          double dy = (ll[i].getY() - ll[i - 1].getY()) / (pointsPerSegment + 1);
-          // Ajouter des points intermédiaires
-          for (int j = 1; j <= pointsPerSegment; j++) {
-            double x = ll[i - 1].getX() + j * dx;
-            double y = ll[i - 1].getY() + j * dy;
-            smoothed.push_back({x, y});
-          }
-          smoothed.push_back(ll[i]); // Point de fin du segment
-        }
-        // Simplification légère pour éviter trop de points, mais garder la fluidité
-        auto l = util::geo::simplify(smoothed, tw / TILE_RES); // Réduire si besoin
-        if (l.size() < 2 || (l.size() == 2 && util::geo::dist(l[0], l[1]) < tw / TILE_RES)) continue;
+    auto l = util::geo::simplify(ll, 2 * tw / TILE_RES);
+
+    // skip point-like geometries
+    if (ll.size() < 2) continue;
+    if (l.size() == 2 && util::geo::dist(l[0], l[1]) < tw / TILE_RES) continue;
 
     auto feature = layer->add_features();
 
