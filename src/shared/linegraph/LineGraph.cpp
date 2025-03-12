@@ -170,7 +170,18 @@ void LineGraph::readFromTopoJson(nlohmann::json::array_t objects,
 void LineGraph::readFromGeoJson(nlohmann::json::array_t features) {
   return readFromGeoJson(features, false);
 }
-
+// _____________________________________________________________________________
+void LineGraph::extractLines(const nlohmann::json::object_t& pars, LineEdge* e,
+                             const std::map<std::string, LineNode*>& idMap) {
+  if (pars.count("lines") && pars.at("lines").is_object()) {
+    const auto& lines = pars.at("lines").get<nlohmann::json::object_t>();
+    for (const auto& [key, lineJson] : lines) {
+      if (lineJson.is_object()) {
+        extractLine(lineJson.get<nlohmann::json::object_t>(), e, idMap);
+      }
+    }
+  }
+}
 // _____________________________________________________________________________
 void LineGraph::readFromGeoJson(nlohmann::json::array_t features,
                                 bool webMercCoords) {
@@ -297,7 +308,9 @@ void LineGraph::readFromGeoJson(nlohmann::json::array_t features,
       if (props["dontcontract"].is_number() && props["dontcontract"].get<int>())
         e->pl().setDontContract(true);
 
-      extractLines(props, e, idMap);
+      if (props.is_object()) {
+        extractLines(props.get<nlohmann::json::object_t>(), e, idMap);
+      }
 
       // if no lines were extracted, completely delete edge
       if (e->pl().getLines().empty()) delEdg(e->getFrom(), e->getTo());
