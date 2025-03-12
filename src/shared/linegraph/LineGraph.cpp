@@ -1484,37 +1484,6 @@ std::string LineGraph::getStationLabel(const nlohmann::json::object_t& line) {
 }
 
 // _____________________________________________________________________________
-void LineGraph::extractLine(const nlohmann::json::object_t& line, LineEdge* e,
-                            const std::map<std::string, LineNode*>& idMap) {
-  std::string id = getLineId(line);
-  std::string color = getLineColor(line);
-  std::string label = getLineLabel(line);
-
-  const Line* l = getLine(id);
-  if (!l) {
-    l = new Line(id, label, color);
-    addLine(l);
-  }
-
-  LineNode* dir = 0;
-
-  if (line.count("direction") && idMap.count(line.at("direction"))) {
-    dir = idMap.at(line.at("direction").get<std::string>());
-  }
-
-  if (line.count("style") || line.count("outline-style")) {
-    shared::style::LineStyle ls;
-
-    if (line.count("style")) ls.setCss(line.at("style"));
-    if (line.count("outline-style")) ls.setOutlineCss(line.at("outline-style"));
-
-    e->pl().addLine(l, dir, ls);
-  } else {
-    e->pl().addLine(l, dir);
-  }
-}
-
-// _____________________________________________________________________________
 std::vector<LineGraph> LineGraph::distConnectedComponents(double d,
                                                           bool write) {
   return distConnectedComponents(d, write, 0);
