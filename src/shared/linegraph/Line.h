@@ -14,19 +14,16 @@ namespace linegraph {
 class Line {
  public:
   Line(const std::string& id, const std::string& label,
-       const std::string& color, const std::string& typeLine = "normal")
-      : _id(id), _label(label), _color(color), _typeLine(typeLine) {}
+       const std::string& color)
+      : _id(id), _label(label), _color(color) {}
 
-  const std::string& id() const { return _id; }
-  const std::string& label() const { return _label; }
-  const std::string& color() const { return _color; }
-  const std::string& typeLine() const { return _typeLine; }
-
-  void setColor(const std::string& c) { _color = c; }
-  void setTypeLine(const std::string& t) { _typeLine = t; }
+  const std::string& id() const;
+  const std::string& label() const;
+  const std::string& color() const;
+  void setColor(const std::string& c) { _color = c; };
 
  private:
-  std::string _id, _label, _color, _typeLine;
+  std::string _id, _label, _color;
 };
 }
 }

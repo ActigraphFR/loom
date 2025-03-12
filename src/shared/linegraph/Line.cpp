@@ -6,4 +6,11 @@
 
 using shared::linegraph::Line;
 
-// Aucune redéfinition nécessaire, tout est inline dans Line.h
+// _____________________________________________________________________________
+const std::string& Line::id() const { return _id; }
+
+// _____________________________________________________________________________
+const std::string& Line::label() const { return _label; }
+
+// _____________________________________________________________________________
+const std::string& Line::color() const { return _color; }
